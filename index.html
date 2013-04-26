@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+path {
+  /* fill: steelblue; */
+  stroke: steelblue;
+  fill:none;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+path .zeo{
+    stroke:red;
+}
+.brush .extent {
+  stroke: #fff;
+  fill-opacity: .125;
+  shape-rendering: crispEdges;
+}
+
+</style>
+        <script src="jquery-1.9.1.js"></script>
+        <script src="jquery.md5.min.js"></script>
+        <script src="jquery.sessionStorage.js"></script>
+        <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+        <script src="main.js"></script>
+    </head>
+    <body>
+        <form id="login">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" value="" />
+            <br />
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" value="" />
+            <input type="submit" value="Log in" />
+        </form>
+        <!-- the result of the search will be rendered inside this div -->
+        <div id="result"></div>
+    </body>
+</html>

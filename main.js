@@ -8,6 +8,7 @@ jQuery(function($){
     var App = {
         fitbit_id:327992,
         zeo_id:325683,
+        graphs:[],
         init:function(){
             var self = this;
             if( CS.hasSession() ) this.loadData();
@@ -18,15 +19,20 @@ jQuery(function($){
                 CS.login( $("#username").val(), $("#password").val(), $.proxy(self.loadData,self)); 
             });
 
-            D3Test.init();
+            // D3Test.init();
         },
         loadData:function(){
+            var self = this;
             //CS.getSensorData(this.sensor_id,$.proxy(App.parseData,App));
             CS.getSensorDataRange( this.fitbit_id, new Date(2013,3,1),new Date(2013,3,2), 
-                $.proxy(function(data){ D3Test.addGraph("fitbit",data,"#f00");},this));
+                $.proxy(function(data){ 
+                    self.graphs.push( new D3TestGraph("fitbit",data,"#f00"));
+                },this));
 
             CS.getSensorDataRange( this.zeo_id,new Date(2013,3,1),new Date(2013,3,2), 
-                $.proxy(function(data){ D3Test.addGraph("zeo",data,"#0f0");},this));
+                $.proxy(function(data){ 
+                    self.graphs.push( new D3TestGraph("zeo",data,"#0f0"));
+                },this));
         }
     };
 
@@ -87,11 +93,13 @@ jQuery(function($){
         getSensorDataRange:function( id, start, end, callback ){
             // var data = [];
             
-            this.getSensorData( id, {start_date:(+start)/1000,end_date:(+end)/1000,per_page:1000},$.proxy(function(data){
-                console.log("got data");
-                callback(data);
-            },this));
-
+            this.getSensorData( id, {
+                    start_date:(+start)/1000,
+                    end_date:(+end)/1000,per_page:1000},
+                $.proxy(function(data){
+                    console.log("got data");
+                    callback(data);
+                },this));
 
         }
     };
@@ -101,100 +109,113 @@ jQuery(function($){
     /*
     * D3 test
     */
-    D3Test = {
-        graphCount:0, 
-        init:function(data){
-            self = this;
-            this.margin = {top: 20, right: 20, bottom: 30, left: 50};
-            this.width = 960 - this.margin.left - this.margin.right,
-            this.height = 200 - this.margin.top - this.margin.bottom;
+    function D3TestGraph (title, data, scolor){
+        self = this;
+        this.margin = {top: 10, right: 10, bottom: 70, left: 40};
+        this.margin2 = {top: 160, right: 10, bottom: 20, left: 40};
+        this.width = 960 - this.margin.left - this.margin.right,
+        this.height = 200 - this.margin.top - this.margin.bottom;
+        this.height2 = 200 - this.margin2.top - this.margin2.bottom;
 
-            this.x = d3.time.scale()
-            .range([0, this.width-30]);
-
-            this.y1 = d3.scale.linear()
-            .range([this.height, 0]);
-
-            this.y2 = d3.scale.linear()
-            .range([this.height, 0]);
-
-            this.xAxis = d3.svg.axis()
-            .scale(this.x)
-            .orient("bottom");
-
-            this.yAxis1 = d3.svg.axis()
-            .scale(this.y1)
-            .orient("left");
-
-            this.yAxis2 = d3.svg.axis()
-            .scale(this.y2)
-            .orient("right");
+        this.x = d3.time.scale().range([0, this.width]);
+        this.x2 = d3.time.scale().range([0, this.width]);
+        this.y = d3.scale.linear().range([this.height, 0]);
+        this.y2 = d3.scale.linear().range([this.height2, 0]);
 
 
-            this.line1 = d3.svg.line()
-            .x(function(d) { return self.x(d.date); })
-            .y(function(d) { return self.y1(d.value); });
+        this.xAxis = d3.svg.axis().scale(this.x).orient("bottom");
+        this.xAxis2 = d3.svg.axis().scale(this.x2).orient("bottom");
+        this.yAxis = d3.svg.axis().scale(this.y).orient("left"); 
 
-            this.line2 =  d3.svg.line()
-            .x(function(d) { return self.x(d.date); })
-            .y(function(d) { return self.y2(d.value); });
+        this.brush = d3.svg.brush()
+        .x(this.x2)
+        .on("brush", $.proxy(this.brushed,this));
 
+        this.line = d3.svg.line()
+        .x(function(d) { return self.x(d.date); })
+        .y(function(d) { return self.y(d.value); });
 
-            this.svg = d3.select("body").append("svg")
-            .attr("width", this.width + this.margin.left + this.margin.right)
-            .attr("height", this.height + this.margin.top + this.margin.bottom)
-            .append("g")
-            .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
+        this.line2 = d3.svg.line()
+        .x(function(d) { return self.x2(d.date); })
+        .y(function(d) { return self.y2(d.value); });
 
-        },
-        addGraph:function(title,data,scolor){
-            
-            data.forEach(function(d) {
-                d.date = new Date(d.date*1000);
-                d.value = +d.value;
-            });
+        this.svg = d3.select("body").append("svg")
+        .attr("width", this.width + this.margin.left + this.margin.right)
+        .attr("height", this.height + this.margin.top + this.margin.bottom)
+       
+        this.svg.append("defs").append("clipPath")
+        .attr("id", "clip")
+        .append("rect")
+        .attr("width", this.width)
+        .attr("height", this.height);
 
-            //x axis is same for multiple graphs
-            if(!this.graphCount){
-                this.x.domain(d3.extent(data, function(d) { return d.date; }));
-            
-                this.svg.append("g")
-                .attr("class", "x axis")
-                .attr("transform", "translate(0," + this.height + ")")
-                .call(this.xAxis);
-            }
-            
-            this.y1.domain([
-                d3.min(data,function(d){return d.value;})-1
-                , d3.max(data,function(d){return d.value;})+1]);
-            
-            this.y2.domain([ 
-                d3.min(data,function(d){return d.value;})-1
-                , d3.max(data,function(d){return d.value;})+1]);
-           
-            this.svg.append("path")
-            .datum(data)
-            .attr("class", "line")
-            .attr("d", !!this.graphCount?this.line2:this.line1)
-            .style("stroke", scolor);
+        this.focus = this.svg.append("g")
+        .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
+        this.context = this.svg.append("g")
+        .attr("transform", "translate(" +this.margin2.left + "," +this.margin2.top +")");
+      
 
-            this.svg.append("g")
-            //.attr("transform", "translate("+(this.graphCount*-50)+",0)")
-            .attr("class", "y axis")
-            .style("fill", scolor)
-            .attr("transform","translate("+(!!this.graphCount?this.width-30:0)+",0)")
-            .call(!!this.graphCount?this.yAxis2:this.yAxis1)
-            .append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("y", 6)
-            .attr("dy", !!this.graphCount?"-1.0em":"0.71em")
-            .style("text-anchor", "end")
-            .text(title);
+        data.forEach(function(d) {
+            d.date = new Date(d.date*1000);
+            d.value = +d.value;
+        });
 
+        this.x.domain(d3.extent(data, function(d) { return d.date; }));
+        this.x2.domain(this.x.domain());
+        this.y.domain([
+            d3.min(data,function(d){return d.value;})-1,
+            d3.max(data,function(d){return d.value;})+1
+        ]);
+        this.y2.domain(this.y.domain());
         
-            this.graphCount++;
 
-        }
+        this.focus.append("path")
+        .datum(data)
+        .attr("class", "line")
+        .attr("d", this.line)
+        .attr("clip-path","url(#clip)")
+        .style("stroke", scolor);
+
+        this.focus.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + this.height + ")")
+        .call(this.xAxis);
+
+        this.focus.append("g")
+        .attr("class", "y axis")
+        .style("fill", scolor)
+        .call(this.yAxis)
+        .append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", 6)
+        .attr("dy", "0.71em")
+        .style("text-anchor", "end")
+        .text(title);
+
+        this.context.append("path")
+        .datum(data)
+        .attr("d",this.line2)
+
+        this.context.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0,"+this.height2+")")
+        .call(this.xAxis2);
+
+        this.context.append("g")
+        .attr("class","x brush")
+        .call(this.brush)
+        .selectAll("rect")
+        .attr("y",-6)
+        .attr("height",this.height2+7);
+        
+        this.test = "haha";
+    };
+    D3TestGraph.prototype.brushed = function() {
+        console.log("brushed");
+        console.log(this.test);
+        this.x.domain(this.brush.empty() ? this.x2.domain() : this.brush.extent());
+        this.focus.select("path").attr("d", this.line);
+        this.focus.select(".x.axis").call(this.xAxis);
     };
 
 

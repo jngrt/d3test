@@ -105,7 +105,44 @@ jQuery(function($){
     };
 
 
+    var d3Test = (function(){
+        var graphs = []
+        , width = 960
+        , graphHeight = 100
+        , brushHeight = 50
+        , xGraph = d3.time.scale().range([0,width])
+        , xBrush = d3.time.scale().range([0,width])
+        , yGraph = d3.scale.linear.range([graphHeight,0])
+        , yBrush = d3.scale.linear.range([brushHeight,0])
+        , xAxisGraph = d3.svg.axis().scale(xGraph).orient("bottom")
+        , xAxisBrush = d3.svg.axis().scale(xBrush).orient("bottom")
+        , yAxis = d3.svg.axis().scale(yGraph).orient("left")
+        
+        var brush = d3.svg.brush()
+        .x(xBrush)
+        .on("brush", $.proxy(brushed,this));
 
+        
+
+
+        function brushed(){
+            
+        }
+
+        return {
+            init:function(){
+               
+
+            },
+            addGraph:function(){
+
+            },
+            addBrush:function(){
+
+            }
+        };
+    }());
+    
     /*
     * D3 test
     */

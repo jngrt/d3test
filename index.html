@@ -36,6 +36,7 @@ path .zeo{
         <script src="main.js"></script>
     </head>
     <body>
+        <div id="login-form">
         <form id="login">
             <label for="username">Username</label>
             <input id="username" name="username" type="text" value="" />
@@ -44,6 +45,17 @@ path .zeo{
             <input id="password" name="password" type="password" value="" />
             <input type="submit" value="Log in" />
         </form>
+    </div>
+    <div style="clear:both">
+        <h3 id="title" style="float:left"></h3>
+        <div style="padding:20px;float:left">
+            <button id="prev">Prev</button>
+            <button id="next">Next</button>
+        </div>
+        <div id="bookmarks" style="padding:20px;float:left">
+            
+        </div>
+    </div>  
         <!-- the result of the search will be rendered inside this div -->
         <div id="result"></div>
     </body>

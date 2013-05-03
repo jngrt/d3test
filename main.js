@@ -6,11 +6,22 @@ jQuery(function($){
     */
 
     var App = {
+        bookmarks:[
+        [2013,3,1],
+        [2013,3,4]
+        ],
         fitbit_id:327992,
         zeo_id:325683,
-        graphs:[],
+        heart_id:315518,
+        iphone_noise_id:291225,
+        targetNight:null,
         init:function(){
             var self = this;
+            console.log("app.init");
+
+            this.doDateStuff();
+            this.makeBookmarks();
+            // return;
             if( CS.hasSession() ) this.loadData();
 
             /* attach a submit handler to the form */
@@ -19,20 +30,113 @@ jQuery(function($){
                 CS.login( $("#username").val(), $("#password").val(), $.proxy(self.loadData,self)); 
             });
 
+            
+
             // D3Test.init();
         },
-        loadData:function(){
+        makeBookmarks:function(){
             var self = this;
+            var str="";
+            this.bookmarks.forEach(function(a,i){
+                str += "<button id=\"b"+i+"\">"+a.join("/")+"</button>";
+            });
+            $("#bookmarks").html(str);
+
+            this.bookmarks.forEach(function(a,i){
+                $("#bookmarks #b"+i).click(function(){
+                    self.gotoURL.apply(self,a);
+                });
+            });
+        },
+        gotoURL:function(y,m,d){
+           window.location.href = window.location.pathname 
+                + "?y="+y + "&m="+m + "&d="+d;
+
+        },
+        doDateStuff:function(){
+            targetNight = new Date();// = new Date(Date.now());
+            var y = this.getURLParameter('y');
+            var m = this.getURLParameter('m');
+            var d = this.getURLParameter('d');
+            
+            if( y && m && d)
+                targetNight = new Date(Date.UTC(y,m,d));
+            else{
+                targetNight.setUTCHours(0);
+                targetNight.setUTCMinutes(0);
+                targetNight.setUTCSeconds(0);
+            }
+
+            $("#title").html("Data for "+targetNight.toDateString());
+
+            //prev / next buttons
+            $("#prev").click(function(){
+                var d = new Date( +targetNight - 24 * 3600 * 1000);
+                this.gotoURL( d.getFullYear(),d.getMonth(),d.getDate());
+            });
+
+            $("#next").click(function(){
+                var d = new Date( +targetNight + 24 * 3600 * 1000);
+                this.gotoURL( d.getFullYear(),d.getMonth(),d.getDate());
+            });
+
+
+        },
+        loadData:function(){
+            
+            $("#login-form").hide();
+
+            var self = this;
+            
+          
+            //var targetNight = new Date(Date.UTC(2013,3,1));
+            var startDate = new Date( +targetNight - 4 * 3600 * 1000);
+            var endDate = new Date( +targetNight + 11 * 3600 * 1000);
+            d3Test.init(startDate,endDate);
+
             //CS.getSensorData(this.sensor_id,$.proxy(App.parseData,App));
-            CS.getSensorDataRange( this.fitbit_id, new Date(2013,3,1),new Date(2013,3,2), 
+            CS.getSensorDataRange(this.fitbit_id,startDate,endDate, 
                 $.proxy(function(data){ 
-                    self.graphs.push( new D3TestGraph("fitbit",data,"#f00"));
+                    //self.graphs.push( new D3TestGraph("fitbit",data,"#f00"));
+                    d3Test.addGraph(1,"fitbit",data,"#f00"
+                        ,[0,4]
+                        ,[1,2,3],
+                        function(d){
+                            var labels = ["asleep","awake","active"]
+                            if( d<1 || d>3)return;
+                            return labels[~~d - 1];
+                        }
+                        );
                 },this));
 
-            CS.getSensorDataRange( this.zeo_id,new Date(2013,3,1),new Date(2013,3,2), 
+            CS.getSensorDataRange(this.zeo_id,startDate,endDate, 
                 $.proxy(function(data){ 
-                    self.graphs.push( new D3TestGraph("zeo",data,"#0f0"));
+                        //self.graphs.push( new D3TestGraph("zeo",data,"#0f0"));
+                    d3Test.addGraph(0,"zeo",data,"#0f0"
+                        ,[-1,5]
+                        ,[0,1,2,3,4]
+                        ,function(d){
+                            var labels= ["undef","wake","REM","light","deep"];      
+                            if( d < 0 || d >= labels.length ) return;
+                            return labels[~~d];
+                        });
                 },this));
+
+            CS.getSensorDataRange( this.heart_id,startDate,endDate,
+                $.proxy(function(data){
+                    d3Test.addGraph(2,"heart",data,"#00f",[30,120]);
+                },this));
+            CS.getSensorDataRange( this.iphone_noise_id,startDate,endDate,
+                $.proxy(function(data){
+                    d3Test.addGraph(3,"iphone noise",data,"#ff0");
+                },this));
+        },
+        getURLParameter:function(name) {
+            return decodeURIComponent((
+                new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)')
+                    .exec(location.search)||[,""]
+            )[1].replace(/\+/g, '%20'))||null;
+
         }
     };
 
@@ -40,37 +144,28 @@ jQuery(function($){
     /*
     * CS helper
     */
-    var CS = {
-        session_id:null,
-        url:'https://api.sense-os.nl/',
-        hasSession:function(){
-            this.session_id = $(document).sessionStorage("session_id");
-            return !!this.session_id;
-        },
-        login:function(name,pass,callback){
-            $.ajax({
-                url:this.url+'login.json',
-                type:"POST",
-                data: JSON.stringify({
-                    username:name,
-                    password:$.md5(pass)
-                }),
-                contentType:"application/json; charset=utf-8",
-                dataType:"json",
-                success: function(response){
-                    $(document).sessionStorage("session_id", response.session_id);
-                    callback();
-                }
-            })
-        },
-        getSensorData:function( id, params, callback ){
+    var CS = (function(){
+        var session_id = "bla"
+        , url = 'https://api.sense-os.nl/';
+
+        var paramString = function(a){
+            var str = [];
+            for(var p in a) {
+                str.push(encodeURIComponent(p) + "=" + encodeURIComponent(a[p]));
+            }
+            str = "?"+str.join("&");
+            console.log(str);
+            return str;
+        }
+        
+        var getSensorData = function( id, params, callback ){
 
             $.ajax({
-                url:this.url+'sensors/'+id+'/data'+this.paramString(params),
+                url:url+'sensors/'+id+'/data'+paramString(params),
                 dataType:"json",
                 beforeSend: function (request)
                 {
-                    request.setRequestHeader("X-SESSION_ID",CS.session_id );
+                    request.setRequestHeader("X-SESSION_ID",session_id );
                     request.setRequestHeader("Accept","*");
                 },
                 type:"GET",
@@ -80,72 +175,252 @@ jQuery(function($){
                     callback(r.data); 
                 }
             })
-        },
-        paramString:function(a){
-            var str = [];
-            for(var p in a) {
-                str.push(encodeURIComponent(p) + "=" + encodeURIComponent(a[p]));
-            }
-            str = "?"+str.join("&");
-            console.log(str);
-            return str;
-        },
-        getSensorDataRange:function( id, start, end, callback ){
-            // var data = [];
+        };
+        var getSensorDataRange = function( id, start, end, callback ){
+            var allData = [];
+            var sd = (+start)/1000
+            , ed = (+end)/1000;
             
-            this.getSensorData( id, {
-                    start_date:(+start)/1000,
-                    end_date:(+end)/1000,per_page:1000},
-                $.proxy(function(data){
-                    console.log("got data");
-                    callback(data);
-                },this));
+            var dataHandler = function(data){
+                allData.push.apply(allData,data);
+                if(data.length == 1000)
+                    getMore( id, data[data.length-1].date,ed);
+                else
+                    callback(allData);
+            }
+            var getMore = function(id, start, end){
+                getSensorData.call(this, id, {
+                    start_date:start,
+                    end_date:end,
+                    per_page:1000},
+                    $.proxy( dataHandler,this));
 
-        }
-    };
+            }
+            
+            getMore( id, sd, ed);
+        };
 
+
+        return {
+            hasSession:function(){
+                
+                session_id = $(document).sessionStorage("session_id");
+                console.log("sid:"+session_id);
+                return !!session_id;
+            },
+            login:function(name,pass,callback){
+                $.ajax({
+                    url:url+'login.json',
+                    type:"POST",
+                    data: JSON.stringify({
+                        username:name,
+                        password:$.md5(pass)
+                    }),
+                    contentType:"application/json; charset=utf-8",
+                    dataType:"json",
+                    success: function(response){
+                        $(document).sessionStorage("session_id", response.session_id);
+                        session_id = response.session_id
+                        callback();
+                    }
+                });
+            },
+            //getSensorDataRange:getSensorDataRange
+            getSensorDataRange:function(id,start,end,callback){
+                 getSensorDataRange.call(this,id,start,end,callback);
+
+            }
+
+        };
+    
+    })();
+  
 
     var d3Test = (function(){
         var graphs = []
+        , maxGraphs = 4
         , width = 960
+        , margin = 40
         , graphHeight = 100
         , brushHeight = 50
-        , xGraph = d3.time.scale().range([0,width])
-        , xBrush = d3.time.scale().range([0,width])
-        , yGraph = d3.scale.linear.range([graphHeight,0])
-        , yBrush = d3.scale.linear.range([brushHeight,0])
+        , xGraph = d3.time.scale.utc().range([0,width])
+        , xBrush = d3.time.scale.utc().range([0,width])
+        //, yGraph = d3.scale.linear().range([graphHeight,0])
+        , yBrush = d3.scale.linear().range([brushHeight,0])
         , xAxisGraph = d3.svg.axis().scale(xGraph).orient("bottom")
         , xAxisBrush = d3.svg.axis().scale(xBrush).orient("bottom")
-        , yAxis = d3.svg.axis().scale(yGraph).orient("left")
-        
-        var brush = d3.svg.brush()
-        .x(xBrush)
-        .on("brush", $.proxy(brushed,this));
+        //, yAxis = d3.svg.axis().scale(yGraph).orient("left")
+        , brush
+        , timeView;
 
+        //xAxisGraph.ticks(d3.time.minutes,5);
+        //xAxisBrush.ticks(d3.time.hours,1);
         
+        xAxisGraph.tickFormat(d3.time.format("%H:%M"));
+        xAxisBrush.tickFormat(d3.time.format("%H:%M"));
 
+        var svg = d3.select("body").append("svg")
+        .attr("width", width + 2 * margin)
+        .attr("height", maxGraphs*(graphHeight+margin) + brushHeight + 2 * margin);
+
+        // function createTimeAxis(){
+        //     timeView = svg.append("g")
+        //     .attr("transform","translate("+margin+",10)");
+        //     
+        //     timeView.append("g")
+        //     .attr("class","x axis")
+        //     .call(xAxisGraph);
+
+
+        // }
+        function createBrush(){
+            brush = d3.svg.brush()
+            .x(xBrush)
+            .on("brush", $.proxy(brushed,this));
+
+            var brushOff = (margin+graphHeight)*maxGraphs + margin;
+
+            var brushView = svg.append("g")
+            .attr("transform","translate("+margin+","+brushOff+")");
+
+            brushView.append("g")
+            .attr("class","x axis")
+            .attr("transform","translate(0,"+brushHeight+")")
+            .call(xAxisBrush);
+
+            brushView.append("g")
+            .attr("class","x brush")
+            .call(brush)
+            .selectAll("rect")
+            .attr("y",-6)
+            .attr("height",brushHeight+7);
+
+
+        }
+
+        function addGraph(index,title,data,scolor,range,values,formatFn){
+            console.log("createGraph:"+title);
+
+            // var xGraph = d3.time.scale().range([0,width])
+            // var yGraph = d3.scale.linear().range([graphHeight,0])
+            // var xAxisGraph = d3.svg.axis().scale(xGraph).orient("bottom");
+            // var yAxisGraph = d3.svg.axis().scale(yGraph).orient("left");
+            data.forEach(function(d){
+                d.date = new Date(d.date*1000);
+                d.value = +d.value;
+            });
+            
+            var yGraph = d3.scale.linear().range([graphHeight,0]);
+            var yAxis = d3.svg.axis().scale(yGraph).orient("left");
+            if( values ){
+                yAxis.tickValues(values);
+                console.log("custom ticks");
+            }else console.log("default ticks");
+            
+            if( formatFn ){
+                console.log("custom fn");
+                yAxis.tickFormat(formatFn);
+                
+            }
+            
+            if( range ){
+                console.log("custom domain");
+                yGraph.domain(range);
+
+            }
+            else{
+                console.log('default domain');
+                yGraph.domain([ 
+                    d3.min(data,function(d){return d.value;})-1,
+                    d3.max(data,function(d){return d.value;})+1
+                ]);
+            }
+
+            var yoff = margin + (margin + graphHeight) * index;
+
+            var view = svg.append("g")
+            .attr("transform","translate("+margin+","+ yoff +")");
+
+          
+            // xGraph.domain([startDate,endDate]);
+            //xGraph.domain(d3.extent(data,function(d){return d.date;}));
+            //yGraph.domain([-1,5]);
+
+            var line = d3.svg.line()
+            //.interpolate("basis")
+            .x(function(d) { return xGraph(d.date); })
+            .y(function(d) { return yGraph(d.value);});
+
+            view.append("path")
+            .datum(data)
+            .attr("class","line")
+            .attr("d",line);
+    
+                 view.append("g")
+                 .attr("class","x axis")
+                 .attr("transform","translate(0,"+graphHeight+")")
+                 .call(xAxisGraph);
+            
+            view.append("g")
+                .attr("class", "y axis")
+                //.style("fill", scolor)
+                .call(yAxis)
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 6)
+                .attr("dy", "0.71em")
+                .style("text-anchor", "end")
+                .text(title);
+
+            graphs[index] = {
+                title:title,
+                line:line,
+                view:view
+            };
+        }
 
         function brushed(){
-            
+            console.log("brush");
+            xGraph.domain(brush.empty() ? xBrush.domain() : brush.extent());
+            //timeView.select(".x.axis").call(xAxisGraph);
+
+            //svg.select("path").attr("d",line)
+            graphs.forEach(function(o){
+                o.view.select("path").attr("d",o.line);
+                o.view.select(".x.axis").call(xAxisGraph);
+            });
+
         }
 
         return {
-            init:function(){
-               
-
+            init:function(startDate,endDate){
+                console.log("init");
+                xGraph.domain([startDate,endDate]);
+                xBrush.domain(xGraph.domain());
+                // yGraph.domain([-1,5]);
+                // yBrush.domain(yGraph.domain());
+                createBrush();
+                //createTimeAxis();
             },
-            addGraph:function(){
-
-            },
-            addBrush:function(){
-
-            }
+           addGraph:addGraph
+             // addGraph:function(index,title,data,scolor,range,values,formatFn){
+             //     console.log("addGraph");
+             //    createGraph.apply(this,arguments);
+             //     //graphs.push(createGraph.apply(this, arguments));
+             // }
         };
     }());
-    
+    console.log("init?");
+    App.init();
+});
+
+
+//old code
+function neverDo(){
     /*
     * D3 test
     */
+
     function D3TestGraph (title, data, scolor){
         self = this;
         this.margin = {top: 10, right: 10, bottom: 70, left: 40};
@@ -154,8 +429,8 @@ jQuery(function($){
         this.height = 200 - this.margin.top - this.margin.bottom;
         this.height2 = 200 - this.margin2.top - this.margin2.bottom;
 
-        this.x = d3.time.scale().range([0, this.width]);
-        this.x2 = d3.time.scale().range([0, this.width]);
+        this.x = d3.time.scale.utc().range([0, this.width]);
+        this.x2 = d3.time.scale.utc().range([0, this.width]);
         this.y = d3.scale.linear().range([this.height, 0]);
         this.y2 = d3.scale.linear().range([this.height2, 0]);
 
@@ -179,7 +454,7 @@ jQuery(function($){
         this.svg = d3.select("body").append("svg")
         .attr("width", this.width + this.margin.left + this.margin.right)
         .attr("height", this.height + this.margin.top + this.margin.bottom)
-       
+
         this.svg.append("defs").append("clipPath")
         .attr("id", "clip")
         .append("rect")
@@ -190,7 +465,7 @@ jQuery(function($){
         .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
         this.context = this.svg.append("g")
         .attr("transform", "translate(" +this.margin2.left + "," +this.margin2.top +")");
-      
+
 
         data.forEach(function(d) {
             d.date = new Date(d.date*1000);
@@ -204,7 +479,7 @@ jQuery(function($){
             d3.max(data,function(d){return d.value;})+1
         ]);
         this.y2.domain(this.y.domain());
-        
+
 
         this.focus.append("path")
         .datum(data)
@@ -244,7 +519,7 @@ jQuery(function($){
         .selectAll("rect")
         .attr("y",-6)
         .attr("height",this.height2+7);
-        
+
         this.test = "haha";
     };
     D3TestGraph.prototype.brushed = function() {
@@ -257,5 +532,5 @@ jQuery(function($){
 
 
     App.init();
-});
+}
 

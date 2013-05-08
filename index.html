@@ -4,13 +4,12 @@
         <style>
 
 svg {
-  font: 10px sans-serif;
+  font: 14px sans-serif;
 }
 
 path {
-  /* fill: steelblue; */
-  stroke: steelblue;
-  fill:none;
+  fill: steelblue; 
+  /* stroke: steelblue; */
 }
 
 .axis path,
@@ -46,16 +45,13 @@ path .zeo{
             <input type="submit" value="Log in" />
         </form>
     </div>
-    <div style="clear:both">
-        <h3 id="title" style="float:left"></h3>
-        <div style="padding:20px;float:left">
+        <div id="bookmarks" style="padding:20px;">
+        </div>
+        <div style="padding:20px;">
             <button id="prev">Prev</button>
             <button id="next">Next</button>
         </div>
-        <div id="bookmarks" style="padding:20px;float:left">
-            
-        </div>
-    </div>  
+        <h3 id="title"></h3>
         <!-- the result of the search will be rendered inside this div -->
         <div id="result"></div>
     </body>

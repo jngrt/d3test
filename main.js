@@ -7,10 +7,23 @@ jQuery(function($){
 
     var App = {
         bookmarks:[
-        [2013,3,1],
-        [2013,3,4]
+        [2013,3,27],
+        [2013,3,29],
+        [2013,4,3],
+        [2013,4,4],
+        [2013,4,8],
+        [2013,4,9],
+        [2013,4,11],
+        [2013,4,15],
+        [2013,4,16],
+        [2013,4,17],
+        [2013,4,18],
+        [2013,4,19],
+        [2013,4,20],
+        [2013,4,21],
+        [2013,4,26]
         ],
-        fitbit_id:327992,
+        fitbit_id:330685, //327992,
         zeo_id:325683,
         heart_id:315518,
         iphone_noise_id:291225,
@@ -56,7 +69,7 @@ jQuery(function($){
         doDateStuff:function(){
             targetNight = new Date();// = new Date(Date.now());
             var y = this.getURLParameter('y');
-            var m = this.getURLParameter('m');
+            var m = this.getURLParameter('m') - 1;
             var d = this.getURLParameter('d');
             
             if( y && m && d)
@@ -98,8 +111,8 @@ jQuery(function($){
             CS.getSensorDataRange(this.fitbit_id,startDate,endDate, 
                 $.proxy(function(data){ 
                     //self.graphs.push( new D3TestGraph("fitbit",data,"#f00"));
-                    d3Test.addGraph(1,"fitbit",data,"#f00"
-                        ,[0,4]
+                    d3Test.addGraph(1,"fitbit",data,"#f00",false
+                        ,[0,3]
                         ,[1,2,3],
                         function(d){
                             var labels = ["asleep","awake","active"]
@@ -112,23 +125,23 @@ jQuery(function($){
             CS.getSensorDataRange(this.zeo_id,startDate,endDate, 
                 $.proxy(function(data){ 
                         //self.graphs.push( new D3TestGraph("zeo",data,"#0f0"));
-                    d3Test.addGraph(0,"zeo",data,"#0f0"
-                        ,[-1,5]
+                    d3Test.addGraph(2,"zeo",data,"#0f0",false
+                        ,[0,4]
                         ,[0,1,2,3,4]
                         ,function(d){
-                            var labels= ["undef","wake","REM","light","deep"];      
-                            if( d < 0 || d >= labels.length ) return;
-                            return labels[~~d];
+                            var labels= ["","wake","REM","light","deep"];      
+                            if( d < 0 || d > labels.length ) return;
+                            return labels[d];
                         });
                 },this));
 
             CS.getSensorDataRange( this.heart_id,startDate,endDate,
                 $.proxy(function(data){
-                    d3Test.addGraph(2,"heart",data,"#00f",[30,120]);
+                    d3Test.addGraph(0,"heart",data,"#00f",true,[30,120]);
                 },this));
             CS.getSensorDataRange( this.iphone_noise_id,startDate,endDate,
                 $.proxy(function(data){
-                    d3Test.addGraph(3,"iphone noise",data,"#ff0");
+                    d3Test.addGraph(3,"noise",data,"#ff0",true,[-70,-30]);
                 },this));
         },
         getURLParameter:function(name) {
@@ -241,6 +254,7 @@ jQuery(function($){
         , maxGraphs = 4
         , width = 960
         , margin = 40
+        , leftMargin = 80
         , graphHeight = 100
         , brushHeight = 50
         , xGraph = d3.time.scale.utc().range([0,width])
@@ -260,8 +274,15 @@ jQuery(function($){
         xAxisBrush.tickFormat(d3.time.format("%H:%M"));
 
         var svg = d3.select("body").append("svg")
-        .attr("width", width + 2 * margin)
+        .attr("width", width + margin + leftMargin)
         .attr("height", maxGraphs*(graphHeight+margin) + brushHeight + 2 * margin);
+        
+        svg.append("defs").append("clipPath")
+        .attr("id", "clip")
+        .append("rect")
+        .attr("width", width)
+        .attr("height", graphHeight);
+
 
         // function createTimeAxis(){
         //     timeView = svg.append("g")
@@ -281,7 +302,7 @@ jQuery(function($){
             var brushOff = (margin+graphHeight)*maxGraphs + margin;
 
             var brushView = svg.append("g")
-            .attr("transform","translate("+margin+","+brushOff+")");
+            .attr("transform","translate("+leftMargin+","+brushOff+")");
 
             brushView.append("g")
             .attr("class","x axis")
@@ -298,7 +319,7 @@ jQuery(function($){
 
         }
 
-        function addGraph(index,title,data,scolor,range,values,formatFn){
+        function addGraph(index,title,data,scolor,interpolate,range,values,formatFn){
             console.log("createGraph:"+title);
 
             // var xGraph = d3.time.scale().range([0,width])
@@ -339,27 +360,40 @@ jQuery(function($){
             var yoff = margin + (margin + graphHeight) * index;
 
             var view = svg.append("g")
-            .attr("transform","translate("+margin+","+ yoff +")");
+            .attr("transform","translate("+leftMargin+","+ yoff +")");
 
           
             // xGraph.domain([startDate,endDate]);
             //xGraph.domain(d3.extent(data,function(d){return d.date;}));
             //yGraph.domain([-1,5]);
+            var area = d3.svg.area()
+            .x(function(d) { return xGraph(d.date); })
+            .y0(graphHeight)
+            .y1(function(d) { return yGraph(d.value); });
+            
+            if( interpolate )
+                area.interpolate("basis");
 
             var line = d3.svg.line()
             //.interpolate("basis")
             .x(function(d) { return xGraph(d.date); })
             .y(function(d) { return yGraph(d.value);});
 
+            // view.append("path")
+            // .datum(data)
+            // .attr("class","line")
+            // .attr("d",line);
+
             view.append("path")
             .datum(data)
-            .attr("class","line")
-            .attr("d",line);
-    
-                 view.append("g")
-                 .attr("class","x axis")
-                 .attr("transform","translate(0,"+graphHeight+")")
-                 .call(xAxisGraph);
+            .attr("class","area")
+            .attr("d",area)
+            .attr("clip-path","url(#clip)");
+
+             view.append("g")
+             .attr("class","x axis")
+             .attr("transform","translate(0,"+graphHeight+")")
+             .call(xAxisGraph);
             
             view.append("g")
                 .attr("class", "y axis")
@@ -375,6 +409,7 @@ jQuery(function($){
             graphs[index] = {
                 title:title,
                 line:line,
+                area:area,
                 view:view
             };
         }
@@ -386,7 +421,8 @@ jQuery(function($){
 
             //svg.select("path").attr("d",line)
             graphs.forEach(function(o){
-                o.view.select("path").attr("d",o.line);
+                // o.view.select("path").attr("d",o.line);
+                o.view.select("path").attr("d",o.area);
                 o.view.select(".x.axis").call(xAxisGraph);
             });
 

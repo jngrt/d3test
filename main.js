@@ -111,7 +111,7 @@ jQuery(function($){
             CS.getSensorDataRange(this.fitbit_id,startDate,endDate, 
                 $.proxy(function(data){ 
                     //self.graphs.push( new D3TestGraph("fitbit",data,"#f00"));
-                    d3Test.addGraph(1,"fitbit",data,"#f00",false
+                    d3Test.addGraph(3,"fitbit",data,"#f00",false
                         ,[0,3]
                         ,[1,2,3],
                         function(d){
@@ -137,11 +137,18 @@ jQuery(function($){
 
             CS.getSensorDataRange( this.heart_id,startDate,endDate,
                 $.proxy(function(data){
-                    d3Test.addGraph(0,"heart",data,"#00f",true,[30,120]);
+                    d3Test.addGraph(1,"heart",data,"#00f",true
+                    ,[40,140]
+                    ,[40,60,80,100,120,140]);
                 },this));
             CS.getSensorDataRange( this.iphone_noise_id,startDate,endDate,
                 $.proxy(function(data){
-                    d3Test.addGraph(3,"noise",data,"#ff0",true,[-70,-30]);
+                    d3Test.addGraph(0,"noise",data,"#ff0",true
+                    ,[-70,-30]
+                    ,[-70,-30]
+                    ,function(d){
+                        return (d==-70)?"quiet":"loud";
+                    });
                 },this));
         },
         getURLParameter:function(name) {
@@ -402,7 +409,7 @@ jQuery(function($){
                 .append("text")
                 .attr("transform", "rotate(-90)")
                 .attr("y", 6)
-                .attr("dy", "0.71em")
+                .attr("dy", "-4.71em")
                 .style("text-anchor", "end")
                 .text(title);
 
